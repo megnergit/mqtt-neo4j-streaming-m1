@@ -1,0 +1,24 @@
+[project]
+name = "mqtt-simulator"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Meg",email = "miwa.egner@gmail.com"}
+]
+readme = "README.md"
+# requires-python = ">=3.13"
+dependencies = [
+    "paho-mqtt (>=2.1.0,<3.0.0)",
+    "diagrams (>=0.24.4,<0.25.0)"
+]
+
+[tool.poetry]
+packages = [{include = "mqtt_simulator", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+

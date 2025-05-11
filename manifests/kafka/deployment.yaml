@@ -1,0 +1,58 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      containers:
+        - name: kafka
+          image: bitnami/kafka:latest
+          ports:
+            - containerPort: 9092
+            - containerPort: 9093
+          env:
+            - name: KAFKA_HEAP_OPTS
+              value: "-Xmx512m -Xms256m"
+            - name: KAFKA_LOG4J_OPTS
+              value: "-Dlog4j.configuration=file:/opt/bitnami/kafka/config/log4j.properties"
+            - name: KAFKA_KRAFT_CLUSTER_ID
+              value: "abcdefghijklmnopqrstuv" # Unique identifier of your choice.
+            - name: KAFKA_CFG_NODE_ID
+              value: "1"
+            - name: KAFKA_CFG_PROCESS_ROLES
+              value: "broker,controller"
+            - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS
+              value: "1@localhost:9093"
+            - name: KAFKA_CFG_LISTENERS
+              value: "PLAINTEXT://:9092,CONTROLLER://:9093"
+            - name: KAFKA_CFG_ADVERTISED_LISTENERS
+              value: "PLAINTEXT://kafka:9092"
+            - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+            - name: KAFKA_CFG_CONTROLLER_LISTENER_NAMES
+              value: "CONTROLLER"
+            - name: KAFKA_CFG_INTER_BROKER_LISTENER_NAME
+              value: "PLAINTEXT"
+            - name: KAFKA_CFG_ALLOWED_TOPIC_NAME_REGEX
+              value: ".*"
+
+            - name: KAFKA_CFG_LOG_RETENTION_HOURS
+              value: "1" # We will make it short to 1 hour to save the storage.
+            - name: KAFKA_CFG_LOG_SEGMENT_BYTES
+              value: "52428800" # We will limit the log storage to 50MB.
+            - name: KAFKA_CFG_NUM_PARTITIONS
+              value: "1" # We will reduce the number of partition from 3 to 1.
+
+            - name: JMX_PORT
+              value: ""
+            - name: KAFKA_JMX_OPTS
+              value: ""

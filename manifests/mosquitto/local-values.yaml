@@ -1,0 +1,38 @@
+service:
+  type: NodePort
+  externalTrafficPolicy: Cluster
+
+ports:
+  mqtt:
+    port: 1883
+    nodePort: 31883
+  websocket:
+    enabled: false # diable WebSocket 
+
+persistence:
+  enabled: true
+  size: 256Mi
+  storageClass: longhorn
+  replicas: 1
+
+authentication:
+  passwordEntries: "" # no passowrd. authentication disabled
+
+config: |
+  allow_anonymous true
+  persistence true
+  persistence_location /mosquitto/data/
+  log_dest stdout
+  listener 1883
+
+livenessProbe:
+  enabled: true
+  path: /
+  port: 1883
+  protocol: TCP
+
+readinessProbe:
+  enabled: true
+  path: /
+  port: 1883
+  protocol: TCP
