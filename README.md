@@ -49,7 +49,7 @@ as well. That is just a matter of adding a plugin to kafka connector.
 
 The components are following. 
 
-![architecture diagram](./diagram/architecture-2.pdf) 
+![architecture diagram](./diagram/architecture-2.png) 
 
 1. IoT device simulator
 2. mosquitto
