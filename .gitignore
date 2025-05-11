@@ -21,6 +21,8 @@ tmp/
 /kafka-connect-mqtt/plugins/*/assets/
 
 /manifests/mosquitto/*.tar
+/images/sender-3.mov
+
 
 # OS/editor
 .DS_Store

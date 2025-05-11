@@ -3,7 +3,7 @@
 ## Result
 
 
-![sender to neo4j](./diagram/neo4j-1.gif)
+![sender to neo4j](./images/neo4j-1.gif)
 
 
 ## Motivation
