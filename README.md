@@ -2,9 +2,10 @@
 
 ## Result
 
-
 ![sender to neo4j](./images/neo4j-1.gif)
 
+The concept of streaming IoT data to neo4j via mosquitto and kafka was successfully proven. 
+It took long until cypher returns nodes, but this is because neo4j is running on Raspberry Pi. 
 
 ## Motivation
 
