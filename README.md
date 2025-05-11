@@ -109,7 +109,7 @@ The following is bare minimum resource that VM will require to perform the exper
 
 We will use NAT
 
-![resource given to VM](./images/vm-2.png) 
+![resource given to VM](./images/network-1.png) 
 
 We will use 'NAT' here. 
 Make sure 'NAT' and 'NAT network' are different for VirtualBox machines. 
