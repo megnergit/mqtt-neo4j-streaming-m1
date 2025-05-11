@@ -1,4 +1,4 @@
-# IIoT device -> neo4j Streaming Pipeline - PoC
+# IIoT device to neo4j Streaming Pipeline
 
 ## Result
 
