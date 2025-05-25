@@ -1,34 +1,37 @@
 # IIoT device to neo4j Streaming Pipeline
 
 ## Table of Contents
-  - [IIoT device to neo4j Streaming Pipeline](#iiot-device-to-neo4j-streaming-pipeline)
-  - [Result](#result)
-  - [Motivation](#motivation)
-  - [Architecture](#architecture)
-  - [Overview](#overview)
+[Result](#result)
+[Motivation](#motivation)
+  - [Consideration 1 : why kafka?](#consideration-1--why-kafka)
+  - [Consideration 2 : kafka connector](#consideration-2--kafka-connector)
+[Architecture](#architecture)
+[Overview](#overview)
+  - [ Infrastructure](#-infrastructure)
+  - [ Experiments ](#-experiments-)
+[Procedure](#procedure)
   - [1. Set up VM for the experiment](#1-set-up-vm-for-the-experiment)
   - [2. Set up `microk8s` cluster](#2-set-up-microk8s-cluster)
   - [3. Write IoT device simulator with Python](#3-write-iot-device-simulator-with-python)
-  - [sender.py](#senderpy)
-  - [MQTT_HOST = "127.0.0.1"  # we have port forwarding to microk8s](#mqtthost--127001---we-have-port-forwarding-to-microk8s)
+     + [Install pyenv](#install-pyenv)
+     + [Install python 3.12.9 ](#install-python-3129-)
+     + [Install poetry ](#install-poetry-)
+     + [Create project with poetry](#create-project-with-poetry)
+  - [4. Write IoT device simulator with python](#4-write-iot-device-simulator-with-python)
   - [5. Deploy kafka connector](#5-deploy-kafka-connector)
   - [6. Plug in MQTT source connector](#6-plug-in-mqtt-source-connector)
-  - [COPY plugins/neo4j-kafka-connect-5.1.11 /usr/share/java/neo4j-kafka-connect-5.1.11](#copy-pluginsneo4jkafkaconnect5111-usrsharejavaneo4jkafkaconnect5111)
-  - [Kafka Connect REST endpoint (as we are port-forwarding, localhost:8083)](#kafka-connect-rest-endpoint-as-we-are-portforwarding-localhost8083)
-  - [Connector name](#connector-name)
-  - [Delete existing connector first. We will ignore error when no connector exists.](#delete-existing-connector-first-we-will-ignore-error-when-no-connector-exists)
-  - [Create a new connector](#create-a-new-connector)
+     + [Selection of MQTT source connector plugin](#selection-of-mqtt-source-connector-plugin)
+     + [✅ MQTT Source Connectors Comparison (Only Actively Maintained Projects)](#-mqtt-source-connectors-comparison-only-actively-maintained-projects)
+     + [Compile MQTT source connector ](#compile-mqtt-source-connector-)
+     + [Write Dockerfile  ](#write-dockerfile--)
   - [7. Deploy kafka](#7-deploy-kafka)
   - [8. Start neo4j container ](#8-start-neo4j-container-)
   - [9. Plug in neo4j sink connector](#9-plug-in-neo4j-sink-connector)
-  - [REST endpoint of Kafka Connect](#rest-endpoint-of-kafka-connect)
-  - [Infos needed to connect to neo4j on Raspberry Pi](#infos-needed-to-connect-to-neo4j-on-raspberry-pi)
-  - [Delete existing connector. We will go forward when no connector exists.](#delete-existing-connector-we-will-go-forward-when-no-connector-exists)
-  - [then create a new connector](#then-create-a-new-connector)
-  - [    "neo4j.cypher.topic.iot.sensor01": "WITH apoc.convert.fromJsonMap(__value) AS event MERGE (d:Device {id: event.device_id}) SET d.temp = event.temperature, d.ts = event.timestamp",](#----neo4jcyphertopiciotsensor01-with-apocconvertfromjsonmapvalue-as-event-merge-ddevice-id-eventdeviceid-set-dtemp--eventtemperature-dts--eventtimestamp)
+     + [New Dockerfile](#new-dockerfile)
+     + [Deploy kafka-connect again.](#deploy-kafkaconnect-again)
+     + [Inject configuration](#inject-configuration)
   - [10. Connection test](#10-connection-test)
   - [END](#end)
-
 
 ## Result
 
@@ -119,8 +122,8 @@ a storage to mosquitto was simple. Please see [longhorn]https://github.com/megne
 12. network outage (TBD)
 
 ---
-
-## 1. Set up VM for the experiment
+## Procedure
+### 1. Set up VM for the experiment
 
 We will recycle our usual Ubuntu server created by VirtualBox. 
 See [another repo](https://github.com/megnergit/Microk8s_PostgreSQL_M1) of mine
@@ -170,7 +173,7 @@ VBoxManage modifyvm "micro" --natpf1 "apiserver,tcp,,16443,,6443"
 
 −--
 
-## 2. Set up `microk8s` cluster
+### 2. Set up `microk8s` cluster
 
 Please see [how to start microk8s](https://github.com/megnergit/Microk8s_PostgreSQL_M1) 
 to start `microk8s` cluster on the VM that we have just started.
@@ -323,7 +326,7 @@ NAME                            READY   STATUS    RESTARTS        AGE
 mosquitto-86966ddbff-s2hpv      1/1     Running   0               6h14m
 ```
 ---
-## 3. Write IoT device simulator with Python
+### 3. Write IoT device simulator with Python
 
 First we have to create a project with poetry. 
 poetry requires pyenv to specify the particular version of python. 
@@ -337,7 +340,7 @@ So the procedures are following.
 5. write simulator code. 
 
 
-### Install pyenv
+#### Install pyenv
 
 ```
 $ brew install pyenv
@@ -345,7 +348,7 @@ $ brew install pyenv
 $ pyenv --version
 ```
 
-### Install python 3.12.9 
+#### Install python 3.12.9 
 ```
 pyenv install 3.12.9
 ```
@@ -357,7 +360,7 @@ pyenv local 3.12.9
 python --version
 ```
 
-### Install poetry 
+#### Install poetry 
 
 ```
 curl -sSL https://install.python-poetry.org | python3 -
@@ -373,7 +376,7 @@ Add this path in your ```~/.zshrc```.
 export PATH=$HOME/.local/bin:$PATH
 ```
 
-### Create project with poetry
+#### Create project with poetry
 
 ```
 poetry new mqtt-simulator
@@ -388,7 +391,7 @@ poetry init
 Open VS Code and check if you have python 3.12.9.
 ![python interpreter](./images/interpreter-1.png)
 
-### Write simulator code.  
+### 4. Write IoT device simulator with python
 
 IoT device simulator publishes random temperature between 20 and 30 degrees  to mosquitto every 5 seconds  with timestamp and device_id infos. 
 
@@ -433,7 +436,7 @@ It works like this.
 
 ---
 
-## 5. Deploy kafka connector
+### 5. Deploy kafka connector
 
 
 The standard data streaming method to neo4j seems to be via kakfa connector. 
@@ -446,9 +449,9 @@ We will write a Dockerfile and build an image in order to install plugins
 of our choice. 
 
 ---
-## 6. Plug in MQTT source connector
+### 6. Plug in MQTT source connector
 
-### Selection of MQTT source connector plugin
+#### Selection of MQTT source connector plugin
 
 kafka connector can be used as a source connector (= fetch data) and a sink 
 connector (= send data), when we install right plugins. 
@@ -482,7 +485,7 @@ Here is the comparison of possible MQTT source connector that ChatGPT created.
 
 We will use the one from lenses.io. 
 
-### Compile MQTT source connector 
+#### Compile MQTT source connector 
 
 I could not find a jar file, therefore we will start from source code, and compile them. 
 
@@ -626,7 +629,7 @@ kafka-connect-neo4j
         └── manifest.json
 ```
 
-### Write Dockerfile  
+#### Write Dockerfile  
 
 And refer to the jar file we created above inside Dockerfile. 
 
@@ -944,7 +947,7 @@ $ echo "eyJkZXZpY2VfaWQiOiAic2Vuc29yMDEiLCAidGVtcGVyYXR1cmUiOiAyMS4wMiwgInRpbWVz
 ```
 
 ---
-## 7. Deploy kafka
+### 7. Deploy kafka
 
 We will start a pod for the main body of kafka. 
 
@@ -991,7 +994,7 @@ Log file is binary, and we can read it using kcat, but
 we will skip that part now. 
 
 ---
-## 8. Start neo4j container 
+### 8. Start neo4j container 
 
 We will run neo4j on Raspberry Pi in order to simulate a cloud 
 and network outage. We already have docker running on Raspberry Pi. 
@@ -1066,14 +1069,14 @@ Username and password are set in docker-compose.yaml.
 
 
 --
-## 9. Plug in neo4j sink connector
+### 9. Plug in neo4j sink connector
 
 We will do the following. 
 
 - Rebuild kafka-connect image with sink connector
 - inject configuration with shell script. 
 
-### New Dockerfile
+#### New Dockerfile
 
 First download the plugin file and unzip
 
@@ -1128,7 +1131,7 @@ meg@micro:~$ microk8s ctr images ls | grep kafka
 docker.io/library/kafka-connect-neo4j:local
 ```
 
-### Deploy kafka-connect again.
+#### Deploy kafka-connect again.
 
 Come back to local (=host. The laptop). Go to manifests directory.
 Apply manifest files.
@@ -1140,7 +1143,7 @@ mqtt_simulator/manifests
 $ k apply -f ./kakfa-connect
 ```
 
-### Inject configuration
+#### Inject configuration
 Like in the case of MQTT source connect, we will inject environmental
 variables with shell script. 
 
