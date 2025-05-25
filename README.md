@@ -2,13 +2,17 @@
 
 ## Table of Contents
 [Result](#result)
+
 [Motivation](#motivation)
   - [Consideration 1 : why kafka?](#consideration-1--why-kafka)
   - [Consideration 2 : kafka connector](#consideration-2--kafka-connector)
+
 [Architecture](#architecture)
+
 [Overview](#overview)
   - [ Infrastructure](#-infrastructure)
   - [ Experiments ](#-experiments-)
+
 [Procedure](#procedure)
   - [1. Set up VM for the experiment](#1-set-up-vm-for-the-experiment)
   - [2. Set up `microk8s` cluster](#2-set-up-microk8s-cluster)
@@ -31,7 +35,8 @@
      + [Deploy kafka-connect again.](#deploy-kafkaconnect-again)
      + [Inject configuration](#inject-configuration)
   - [10. Connection test](#10-connection-test)
-  - [END](#end)
+
+ [END](#end)
 
 ## Result
 
