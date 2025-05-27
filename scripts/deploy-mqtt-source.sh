@@ -26,7 +26,8 @@ curl -X POST http://localhost:8083/connectors \
     "connect.mqtt.persistence": "memory",
     "key.converter": "org.apache.kafka.connect.storage.StringConverter",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
-    "value.converter.schemas.enable": "false"
+    "value.converter.schemas.enable": "false",
+    "log.level": "DEBUG"
   }
 }' | jq
 

@@ -35,6 +35,9 @@
      + [Deploy kafka-connect again.](#deploy-kafkaconnect-again)
      + [Inject configuration](#inject-configuration)
   - [10. Connection test](#10-connection-test)
+     + [End to End test from Simulator to Raspberry Pi](#end-to-end-test-from-simulator-to-raspberry-pi)
+     + [Network interruption test](#network-interruption-test)
+  - [11. Reboot whole system](#11-reboot-whole-system)
 
  [END](#end)
 
@@ -936,11 +939,11 @@ from the client.
 ```
 $ kubectl exec -it kafka-client -n iot-lab -- \
   kafka-console-consumer.sh --bootstrap-server kafka:9092 \
-  --topic iot.sensor01 --from-beginning
+  --topic iot.sensor01 --from-beginning --group temp-debug-group
 "eyJkZXZpY2VfaWQiOiAic2Vuc29yMDEiLCAidGVtcGVyYXR1cmUiOiAyMS4wMiwgInRpbWVzdGFtcCI6IDE3NDY5ODk1MjMuNjUxNDI2fQ=="
 "eyJkZXZpY2VfaWQiOiAic2Vuc29yMDEiLCAidGVtcGVyYXR1cmUiOiAyMi4yOSwgInRpbWVzdGFtcCI6IDE3NDY5ODk1OTguNjY3Mjc5fQ=="
 "eyJkZXZpY2VfaWQiOiAic2Vuc29yMDEiLCAidGVtcGVyYXR1cmUiOiAyOC40MiwgInRpbWVzdGFtcCI6IDE3NDY5ODk2MDMuNjcxNzQzfQ=="
-"eyJkZXZpY2VfaWQiOiAic2Vuc29yMDEiLCAidGVtcGVyYXR1cmUiOiAyNi43MSwgInRpbWVzdGFtcCI6IDE3NDY5ODk2MDguNjc0NDc5fQ=="
+"eyJkZXZpY2VfaWQiOiAic2Vuc29yMDEiLCAidGVtcGVyYXR1cmU    iOiAyNi43MSwgInRpbWVzdGFtcCI6IDE3NDY5ODk2MDguNjc0NDc5fQ=="
 ...
 ```
 
@@ -1232,7 +1235,9 @@ curl http://localhost:8083/connectors/neo4j-sink/status | jq
 }
 ```
 ---
-## 10. Connection test
+### 10. Connection test
+
+#### End to End test from Simulator to Raspberry Pi
 
 Now we are ready for the connection test. 
 
@@ -1277,7 +1282,355 @@ root@5fb5b0065c92:/var/lib/neo4j# cypher-shell -u neo4j -p test1234 "MATCH (d:De
 | (:Device {temp: 21.21, id: "sensor01", ts: 1.746999955805105E9})  |
 +-------------------------------------------------------------------+
 ```
+#### Network interruption test
 
+First clear the database on neo4j.
+```
+MATCH(n) DETACH DELETE n;
+```
+Check nothing left. 
+```
+MATCH(n) RETURN n;
+```
+
+Cut network connection using following command on Raspberry Pi. 
+```sh
+$ (sleep 60 && sudo ip link set wlan0 up) &
+$ sudo ip link set wlan0 down
+```
+This will reconnect the network after 60 seconds. 
+Otherwise we do not have a mean to log into Raspberry Pi again. 
+
+**Before** interrupt the network, do the following
+- start monitoring LAG.
+```sh
+$ ./script/loop-monitor.sh
+```
+- start monitoring lag. 
+``` sh
+$ k exec -it kafka-7d94d96fc4-hgcsj -- bash
+I have no name!@kafka-7d94d96fc4-hgcsj:/$ watch -n 2 "kafka-consumer-groups.sh --bootstrap-server kafka:9092 --describe --group connect-neo4j-sink 2>/dev/null"
+```
+
+**After** interrupt the network, do the following within 1 minute. 
+- Check if network is really down.
+```sh
+$ ping rasp
+PING rasp.fritz.box (192.168.178.71): 56 data bytes
+Request timeout for icmp_seq 0
+Request timeout for icmp_seq 1
+```
+- Send message. 
+```sh
+ python src/mqtt_simulator/sender.py
+
+✅ Sent: {"device_id": "sensor01", "temperature": 28.02, "timestamp": 1748334719.1008708}
+✅ Sent: {"device_id": "sensor01", "temperature": 29.18, "timestamp": 1748334719.101043}
+✅ Sent: {"device_id": "sensor01", "temperature": 28.65, "timestamp": 1748334719.101154}
+✅ Sent: {"device_id": "sensor01", "temperature": 29.69, "timestamp": 1748334719.101244}
+✅ Sent: {"device_id": "sensor01", "temperature": 22.96, "timestamp": 1748334719.101335}
+✅ Sent: {"device_id": "sensor01", "temperature": 26.88, "timestamp": 1748334719.101419}
+✅ Sent: {"device_id": "sensor01", "temperature": 22.77, "timestamp": 1748334719.1014972}
+✅ Sent: {"device_id": "sensor01", "temperature": 29.53, "timestamp": 1748334719.1015759}
+✅ Sent: {"device_id": "sensor01", "temperature": 21.23, "timestamp": 1748334719.1016488}
+✅ Sent: {"device_id": "sensor01", "temperature": 20.4, "timestamp": 1748334719.101717}
+```
+- Reload <IP>:7474 to check the web UI is down.
+
+- When Raspberry Pi is back, then reload the web UI again, and check
+```sh
+MATCH(n) RETURN n;
+```
+If the last entry matches to the one above, the test is successful. 
+```
+{
+  "identity": 40,
+  "labels": [
+    "Device"
+  ],
+  "properties": {
+    "temp": 20.4,
+    "id": "sensor01",
+    "ts": 1748334719.101717
+  },
+  "elementId": "4:2405d035-a6d4-4424-b704-bf9042d15747:40"
+}
+```
+
+
+----
+
+#### Power unplug test
+
+Do the same with the network interruption test, but this time
+reboot Raspberry Pi. Just pull out blue cable of USB.
+Then send the message. 
+
+The monitoring program ./script/loop-monitor.sh works as intended.
+
+```
+...
+[Tue May 27 10:31:40 CEST 2025] Consumer group 'connect-neo4j-sink' is active (4 members). No action needed.
+CLIENT_ID(s): connector-consumer-neo4j-sink-0
+[Tue May 27 10:32:45 CEST 2025] Consumer group 'connect-neo4j-sink' is active (4 members). No action needed.
+CLIENT_ID(s): -
+[Tue May 27 10:33:51 CEST 2025] Consumer group 'connect-neo4j-sink' has NO active members. Redeploying connector...
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  1845  100   875  100   970  10252  11365 --:--:-- --:--:-- --:--:-- 21705
+{
+  "name": "neo4j-sink",
+  "config": {
+    "connector.class": "org.neo4j.connectors.kafka.sink.Neo4jConnector",
+    "topics": "iot.sensor01",
+    "neo4j.cypher.topic.iot.sensor01": "WITH apoc.convert.fromJsonMap(apoc.text.base64Decode(__value)) AS event CREATE (d:Device {id: event.device_id}) SET d.temp = event.temperature, d.ts = event.timestamp",
+    "neo4j.uri": "bolt://192.168.178.71:7687",
+    "neo4j.authentication.basic.username": "neo4j",
+    "neo4j.authentication.basic.password": "test1234",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+    "neo4j.topic.cypher.value-type": "string",
+    "errors.tolerance": "none",
+    "errors.retry.timeout": "-1",
+    "errors.retry.delay.max.ms": "10000",
+    "tasks.max": "1",
+    "consumer.override.auto.offset.reset": "earliest",
+    "name": "neo4j-sink"
+  },
+  "tasks": [],
+  "type": "sink"
+}
+```
+
+The messages sent.
+```sh
+...
+✅ Sent: {"device_id": "sensor01", "temperature": 26.89, "timestamp": 1748335259.049558}
+✅ Sent: {"device_id": "sensor01", "temperature": 29.5, "timestamp": 1748335259.0496378}
+```
+The messages received.
+```sh
+{
+  "identity": 9,
+  "labels": [
+    "Device"
+  ],
+  "properties": {
+    "temp": 29.5,
+    "id": "sensor01",
+    "ts": 1748335259.0496378
+  },
+  "elementId": "4:2405d035-a6d4-4424-b704-bf9042d15747:9"
+}
+```
+Successful. 
+
+---
+#### Troubleshooting. Monitor kafka-sink-connect.
+
+It turns out no messages received by neo4j. 
+The reason is the following. 
+When Raspberry Pi is down, neo4j is down.
+Then kafka-sink connect fails. 
+
+The critical problem is that **kafka-connect would not come back**, when Rasberry Pi is back.
+We need to **manually restart** kafka-connect. 
+
+We added two scripts in ./scripts.
+- connect-monitor.sh, to execute deploy-neo4j-sink.sh when the connector is found in failed status. 
+- loop-monitor.sh, to monitor the connector status. 
+
+```sh
+./scripts/loop-monitor.sh
+```
+
+
+
+
+-------------------
+### 11. How to reboot whole system
+
+The procedure is as follows. 
+
+#### 1. First start VM using Virualbox ("micro").
+#### 2. Check if microk8s is running there. From your local machine.
+```sh 
+$ k get no
+NAME    STATUS   ROLES    AGE    VERSION
+micro   Ready    <none>   101d   v1.31.7
+```
+#### 3. Check namespace.
+```sh
+$ k get ns
+NAME               STATUS   AGE
+default            Active   101d
+iot-lab            Active   20d
+kube-node-lease    Active   101d
+kube-public        Active   101d
+kube-system        Active   101d
+longhorn-system    Active   98d
+postgres-cluster   Active   100d
+$ k config set-context --current --namespace iot-lab
+Context "microk8s" modified.
+```
+#### 4. Check following pods are running.
++ mosquitto
++ kafka-connect
++ kafka
+```sh
+$ k get po
+NAME                            READY   STATUS    RESTARTS       AGE
+kafka-7d94d96fc4-hgcsj          1/1     Running   6 (34m ago)    19d
+kafka-client                    1/1     Running   6 (34m ago)    18d
+kafka-connect-79cb7565c-c4jj2   1/1     Running   35 (33m ago)   14d
+mosquitto-86966ddbff-thtb7      1/1     Running   0              32m
+```
+**Make sure** to run ./scripts/deploy-mqtt-source.sh and ./scripts/deploy-neo4j-sink.sh to re-configure kafka-connect pod.
+
+```sh
+$ ./scripts/deploy-mqtt-source.sh
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  1504  100   731  100   773    560    592  0:00:01  0:00:01 --:--:--  1154
+{
+  "name": "mqtt-source",
+  "config": {
+    "connector.class": "io.lenses.streamreactor.connect.mqtt.
+....
+    "name": "mqtt-source"
+  },
+  "tasks": [],
+  "type": "source"
+}
+$ ./scripts/deploy-neo4j-sink.sh
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  1495  100   720  100   775   1590   1712 --:--:-- --:--:-- --:--:--  3300
+{
+  "name": "neo4j-sink",
+  "config": {
+....
+    "name": "neo4j-sink"
+  },
+  "tasks": [],
+  "type": "sink"
+}
+```
+
+#### 5. Run ```sender.py```
+```sh
+$ find . -name 'sender.py'
+./src/mqtt_simulator/sender.py
+```
+Check poetry virtual environment when we execute sender.py
+on command line.
+```sh
+$ poetry env info 
+Virtualenv
+Python:         3.12.9
+Implementation: CPython
+Path:           /Users/meg/Library/Caches/pypoetry/virtualenvs/mqtt-simulator-i1JTjAzy-py3.12
+Executable:     /Users/meg/Library/Caches/pypoetry/virtualenvs/mqtt-simulator-i1JTjAzy-py3.12/bin/python
+Valid:          True
+```
+Activate the virtual environment.
+``` sh
+$ source /Users/meg/Library/Caches/pypoetry/virtualenvs/mqtt-simulator-i1JTjAzy-py3.12/bin/activate
+(mqtt-simulator-py3.12)$
+```
+
+Then execute sender.py on command line.
+```sh
+$ python ./src/mqtt_simulator/sender.py
+/Users/meg/kube/iot/mqtt_simulator/./src/mqtt_simulator/sender.py:12: DeprecationWarning: Callback API version 1 is deprecated, update to latest version
+  client = mqtt.Client()
+✅ Sent: {"device_id": "sensor01", "temperature": 22.53, "timestamp": 1748247001.235914}
+✅ Sent: {"device_id": "sensor01", "temperature": 23.1, "timestamp": 1748247001.236087}
+✅ Sent: {"device_id": "sensor01", "temperature": 28.39, "timestamp": 1748247001.23623}
+✅ Sent: {"device_id": "sensor01", "temperature": 20.31, "timestamp": 1748247001.2363431}
+✅ Sent: {"device_id": "sensor01", "temperature": 21.82, "timestamp": 1748247001.236445}
+✅ Sent: {"device_id": "sensor01", "temperature": 29.21, "timestamp": 1748247001.236514}
+✅ Sent: {"device_id": "sensor01", "temperature": 21.2, "timestamp": 1748247001.2365792}
+✅ Sent: {"device_id": "sensor01", "temperature": 27.26, "timestamp": 1748247001.23665}
+✅ Sent: {"device_id": "sensor01", "temperature": 24.92, "timestamp": 1748247001.236727}
+✅ Sent: {"device_id": "sensor01", "temperature": 23.29, "timestamp": 1748247001.236793}
+```
+When we want to deactivate virtual environment, 
+```
+$ deactivate
+```
+One can activate the virtual environment by
+```sh
+$ source $(poetry env info --path)/bin/activate
+(mqtt-simulator-py3.12) $
+```
+as well. 
+
+#### 6. Check if we can see the message on command line.
+```sh
+$ mosquitto_sub -h localhost -p 31883 -t iot/sensor01
+```
+You should see the last sent message.  
+
+Check if we can see the message inside the pod.
+Check first the configuration of mosquitto. 
+
+```sh
+$ k exec -it mosquitto-86966ddbff-thtb7 -- sh
+cat /mosquitto/config/mosquitto.conf
+allow_anonymous true
+persistence true
+persistence_location /mosquitto/data/
+log_dest stdout
+listener 1883
+```
+Then check if there is a database
+```
+/ # ls -lt /mosquitto/data
+total 20
+-rw-------    1 mosquitt mosquitt        47 May 26 08:34 mosquitto.db
+drwx------    2 mosquitt mosquitt     16384 May  7 09:21 lost+found
+```
+This mosquitto.db is the one that store the message. 
+We cannot see the contents, as there is no easy way to parse this binary database. 
+
+#### 7.  Check if kafka received the message. Get into kafka-client
+and pull from there.
+
+``` sh
+$ k exec -it kafka-client -- bash
+I have no name!@kafka-client:/$   kafka-console-consumer.sh --bootstrap-server kafka:9092   --topic iot.sensor01 --from-beginning --group temp-debug-group
+```
+
+8. Check if CLIENT-ID is defined. Get into kafka broker. 
+
+```sh
+$ k exec -it kafka-7d94d96fc4-hgcsj -- bash
+I have no name!@kafka-client:/$ kafka-consumer-groups.sh --bootstrap-server kafka:9092 \
+  --describe --group connect-neo4j-sink 2>/dev/null
+
+GROUP              TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                          HOST            CLIENT-ID
+connect-neo4j-sink iot.sensor01    0          -               0               -               connector-consumer-neo4j-sink-0-ec7c1667-1b38-4e17-ace2-d5ea3c7c42be /10.1.235.164   connector-consumer-neo4j-sink-0
+```
+
+
+9.  Check if neo4j received the messages.
+Neo4j is running on my Raspberry Pi. 
+
+```sh
+$ ssh rasp
+...
+meg@rasp:~ $ docker ps
+CONTAINER ID   IMAGE                  COMMAND                  CREATED        STATUS                PORTS                                                                                                                   NAMES
+5fb5b0065c92   neo4j:5.26.6           "tini -g -- /startup…"   2 weeks ago    Up 2 days             0.0.0.0:7474->7474/tcp, :::7474->7474/tcp, 7473/tcp, 0.0.0.0:7687->7687/tcp, :::7687->7687/tcp                          neo4j
+...
+```
+Open Raspbery Pi <IP>:7474. Log in with 'neo4j' and password. 
+
+```
+MATCH (n) RETURN n;
+```
 
 <!--
 ;====================================================

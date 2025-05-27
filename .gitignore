@@ -9,6 +9,7 @@ tmp/
 *.bak
 *.zip
 *.jar
+logs/
 
 # Kafka Connect plugin jars
 /kafka-connect-neo4j/*.tar

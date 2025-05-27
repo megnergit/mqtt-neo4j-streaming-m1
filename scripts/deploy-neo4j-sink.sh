@@ -27,7 +27,12 @@ curl -X POST http://localhost:8083/connectors \
       "key.converter": "org.apache.kafka.connect.storage.StringConverter",
       "value.converter": "org.apache.kafka.connect.json.JsonConverter",
       "value.converter.schemas.enable": "false",
-      "neo4j.topic.cypher.value-type": "string"
+      "neo4j.topic.cypher.value-type": "string",
+      "errors.tolerance": "none",
+      "errors.retry.timeout": "-1",
+      "errors.retry.delay.max.ms": "10000",
+      "tasks.max": "1",
+      "consumer.override.auto.offset.reset": "earliest"
     }
   }' | jq
 
