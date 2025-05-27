@@ -37,6 +37,7 @@
   - [10. Connection test](#10-connection-test)
      + [End to End test from Simulator to Raspberry Pi](#end-to-end-test-from-simulator-to-raspberry-pi)
      + [Network interruption test](#network-interruption-test)
+     + [Power unplug test](#power-unplug-test)
   - [11. Reboot whole system](#11-reboot-whole-system)
 
  [END](#end)
