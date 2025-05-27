@@ -1447,7 +1447,9 @@ We added two scripts in ./scripts.
 ```
 
 
-
+**To do list**
+Move sink conenctor to Raspberry Pi. Kafka is pull-base. We should
+let connector pull the message from VM to cloud. 
 
 -------------------
 ### 11. How to reboot whole system
